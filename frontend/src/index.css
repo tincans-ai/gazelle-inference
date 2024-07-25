@@ -1,0 +1,27 @@
+/* styles.css */
+.recording-icon {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.recording-icon.active {
+  background: #BA0021;
+  animation: flashing 1.5s infinite alternate;
+}
+
+.recording-icon.inactive {
+  background: gray;
+}
+
+@keyframes flashing {
+  from {
+    opacity: 0.4;
+  }
+  to {
+    opacity: 1;
+  }
+}
