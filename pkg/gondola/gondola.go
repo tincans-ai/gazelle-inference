@@ -220,7 +220,6 @@ type Orchestrator struct {
 	vadAccComp    Component
 	startMsg      AudioConfigStartMessage
 	gazelleClient *GazelleClient
-	synthComp     Component
 	timingCache   *TimingCache
 }
 
@@ -234,20 +233,6 @@ func NewOrchestrator(startMsg AudioConfigStartMessage, ws *wsw.WSWrapper) (*Orch
 	}
 	gazelleClient := NewGazelleClient("http://localhost:8082/generate")
 
-	//read from env
-	playHTID := os.Getenv("PLAYHT_ID")
-	playHTSecret := os.Getenv("PLAYHT_SECRET")
-	playHTCfg := PlayHTConfig{
-		ID:           playHTID,
-		Secret:       playHTSecret,
-		SamplingRate: 24000,
-		OutputFormat: "raw",
-	}
-	playHTSynth, err := NewPlayHTSynthesizer(playHTCfg)
-	if err != nil {
-		return nil, err
-	}
-
 	timingCache := NewTimingCache()
 	websocketOutputter := NewWebsocketOutput(ctx, ws, 24000, timingCache)
 
@@ -257,7 +242,6 @@ func NewOrchestrator(startMsg AudioConfigStartMessage, ws *wsw.WSWrapper) (*Orch
 		vadAccComp:    vadAccComp,
 		startMsg:      startMsg,
 		gazelleClient: gazelleClient,
-		synthComp:     playHTSynth,
 		timingCache:   timingCache,
 	}, nil
 }
@@ -279,9 +263,6 @@ func (o *Orchestrator) Start(ctx context.Context) error {
 	gazelleOutChan := o.gazelleClient.Process(ctx, gazelleInputChan)
 
 	//gazelleOutputChan := make(chan types.GondolaMessage)
-	synthInputChan := make(chan types.GondolaMessage)
-	synthOutputChan := o.synthComp.Process(ctx, synthInputChan)
-
 	outputInputChan := make(chan types.GondolaMessage)
 	outputErrChan := o.outputComp.Sink(ctx, outputInputChan)
 
@@ -290,7 +271,6 @@ func (o *Orchestrator) Start(ctx context.Context) error {
 	go func() {
 		defer close(vadInputChan)
 		//defer close(gazelleOutputChan)
-		defer close(synthInputChan)
 		defer close(outputInputChan)
 
 		for {
@@ -341,15 +321,6 @@ func (o *Orchestrator) Start(ctx context.Context) error {
 				}
 				msg.Content = trimmedStr
 				msg.SynthesizerID = xid.New()
-				// send the text to the synthesizer
-				go func() {
-					synthInputChan <- msg
-					logger.Info("sent to synth", "content", msg.Content)
-				}()
-			case msg := <-synthOutputChan:
-				// This channel receives the audio response from the synthesizer
-				// At this point, we send the audio back to the user
-				// send the audio to the output component
 				outputInputChan <- msg
 				go func() {
 					o.outputComp.Start(ctx, msg.GazelleID, msg.SynthesizerID)
