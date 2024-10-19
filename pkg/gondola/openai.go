@@ -122,6 +122,7 @@ func (c *OpenAIClient) Process(ctx context.Context, input <-chan types.GondolaMe
 				if err != nil {
 					logger.ErrorContext(ctx, "Error decoding audio from base64", "error", err)
 				}
+				logger.InfoContext(ctx, "Received audio from OpenAI", "audio", len(audio))
 				output <- types.GondolaMessage{
 					Audio:       audio,
 					MessageType: types.MessageTypeSynthesizerOutput,
@@ -129,9 +130,16 @@ func (c *OpenAIClient) Process(ctx context.Context, input <-chan types.GondolaMe
 					Timestamp:   time.Now(),
 					GazelleID:   c.currID,
 				}
+			case "response.audio.done":
+				output <- types.GondolaMessage{
+					MessageType: types.MessageTypeSynthesizerOutput,
+					EOF:         true,
+					Timestamp:   time.Now(),
+					GazelleID:   c.currID,
+				}
 
 			default:
-				logger.ErrorContext(ctx, "Received unexpected message type", "message", response)
+				logger.WarnContext(ctx, "Received unexpected message type", "message", response)
 			}
 		}
 	}()

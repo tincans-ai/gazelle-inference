@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"strings"
 	"sync"
 	"time"
 
@@ -219,7 +218,7 @@ type Orchestrator struct {
 	outputComp    WebsocketOutputter
 	vadAccComp    Component
 	startMsg      AudioConfigStartMessage
-	gazelleClient *GazelleClient
+	gazelleClient *OpenAIClient
 	timingCache   *TimingCache
 }
 
@@ -231,7 +230,12 @@ func NewOrchestrator(startMsg AudioConfigStartMessage, ws *wsw.WSWrapper) (*Orch
 	if err != nil {
 		return nil, err
 	}
-	gazelleClient := NewGazelleClient("http://localhost:8082/generate")
+	openAIKey := os.Getenv("OPENAI_API_KEY")
+	if openAIKey == "" {
+		return nil, fmt.Errorf("OPENAI_API_KEY is required")
+	}
+
+	gazelleClient := NewOpenAIClient(openAIKey)
 
 	timingCache := NewTimingCache()
 	websocketOutputter := NewWebsocketOutput(ctx, ws, 24000, timingCache)
@@ -315,11 +319,6 @@ func (o *Orchestrator) Start(ctx context.Context) error {
 					continue
 				}
 
-				trimmedStr := strings.TrimSpace(strings.ReplaceAll(msg.Content, "\n", ""))
-				if trimmedStr == "" {
-					continue
-				}
-				msg.Content = trimmedStr
 				msg.SynthesizerID = xid.New()
 				outputInputChan <- msg
 				go func() {
